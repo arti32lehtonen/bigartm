@@ -107,58 +107,103 @@ class ARTM(object):
                  dictionary=None, cache_theta=False, theta_columns_naming='id', seed=-1,
                  show_progress_bars=False, theta_name=None):
         """
-        :param int num_topics: the number of topics in model, will be overwrited if\
-                                 topic_names is set
-        :param int num_processors: how many threads will be used for model training, if\
-                                 not specified then number of threads will be detected by the lib
-        :param topic_names: names of topics in model
-        :type topic_names: list of str
-        :param dict class_ids: list of class_ids and their weights to be used in model,\
-                                 key --- class_id, value --- weight, if not specified then\
-                                 all class_ids will be used
-        :param bool cache_theta: save or not the Theta matrix in model. Necessary if\
-                                 ARTM.get_theta() usage expects
-        :param list scores: list of scores (objects of artm.*Score classes)
-        :param list regularizers: list with regularizers (objects of artm.*Regularizer classes)
-        :param int num_document_passes: number of inner iterations over each document
-        :param dictionary: dictionary to be used for initialization, if None nothing will be done
-        :type dictionary: str or reference to Dictionary object
-        :param bool reuse_theta: reuse Theta from previous iteration or not
-        :param str theta_columns_naming: either 'id' or 'title', determines how to name columns\
-                                 (documents) in theta dataframe
-        :param seed: seed for random initialization, -1 means no seed
-        :param show_progress_bars: a boolean flag indicating whether to show progress bar in fit_offline,\
-                                   fit_online and transform operations.
-        :type seed: unsigned int or -1
-        :param theta_name: string, name of ptd (theta) matrix
+        Class implementing the Additive Regularization Topic Model.
 
-        :Important public fields:
-          * regularizers: contains dict of regularizers, included into model
-          * scores: contains dict of scores, included into model
-          * score_tracker: contains dict of scoring results:\
-               key --- score name, value --- ScoreTracker object, which contains info about\
-               values of score on each synchronization (e.g. collection pass) in list
+        Parameters
+        ----------
+        num_topics: int, default = None
+            
+            The number of topics in the model.
+            Either num_topics or topic_names should be set, num_topics will be
+            overwritten if topic_names is present.
+            
+        topic_names: list of str, default = None 
+            
+            The names of topics in the model.
+            topic_names to use for naming Phi matrix
+            columns and Theta matrix rows (for example dataframe columns of the get_phi()
+            result, dataframe index of the get_theta() result). Also topic_names to use for
+            regularizers when regularizers applied only for given topics.     
+            
+            If None then topic_names is set to ['topic_0', 'topic_1', 'topic_2' ... ] 
+            according to the value of num_topics.
+            
+        num_processors: int, default = None
+            The number of threads to use for model training.
+            
+            If None then the number of threads will be estimated automatically.
+        
+        class_ids: dict, default = None
+            Class_ids with their weights.
+            Keys of the dict are class_id names, values are their weights.
+            
+            If None then all class_ids will be used with weights 1.0.
+            
+            class_id is the same as modality in additive regularization theory and 
+            namespace in vowpal wabbit format.
+            
+        scores: list of artm.scores.*Score objects, default = None
+            Scores to use in the model. Score value is computed after each synchronization.
+            All scores values are stored in .score_tracker attribute.
+            For the detailed explanation for each score usage see
+            http://docs.bigartm.org/en/stable/tutorials/scores_descr.html
+            
+            If None then no scores will be used.
+        
+        regularizers: list of artm.regularizers.*Regularizer, default = None
+            Regularizers to impose additional criteria to the model,
+            e.g. topics sparsity and diversity, semi-supervised learning, etc.
+            For the detailed explanation of each regularizer usage see 
+            http://docs.bigartm.org/en/stable/tutorials/regularizers_descr.html
+            
+            If None then no regularizers will be used.
+            
+        num_document_passes: int, default = 10
+            The number of passes through each single document between
+            the updates of the Phi matrix.
+            
+            For traditional offline EM-algorithm set num_document_passes to 1.
+        
+        reuse_theta: bool, default = False
+            If True then Theta matrix will be reused from the previous iteration.
+            
+            If False then Theta will be reinitialized at the start of the
+            each iteration (all values are set to 1 / num_topics).
+            
+            For traditional offline EM-algorithm set reuse_theta to True.
 
-        :Note:
-          * Here and anywhere in BigARTM empty topic_names or class_ids means that\
-            model (or regularizer, or score) should use all topics or class_ids.
-          * If some fields of regularizers or scores are not defined by\
-            user --- internal lib defaults would be used.
-          * If field 'topic_names' is None, it will be generated by BigARTM and will\
-            be available using ARTM.topic_names().
-          * Most arguments of ARTM constructor have corresponding setter and getter\
-            of the same name that allows to change them at later time, after ARTM object\
-            has been created.
-          * Setting theta_name to a non-empty string activates an experimental mode\
-            where cached theta matrix is internally stored as a phi matrix with tokens\
-            corresponding to item title, so user should guarantee that all ites has unique titles.\
-            With theta_name argument you specify the name of this matrix\
-            (for example 'ptd' or 'theta', or whatever name you like).\
-            Later you can retrieve this matix with ARTM.get_phi(model_name=ARTM.theta_name),\
-            change its values with ARTM.master.attach_model(model=ARTM.theta_name),\
-            export/import this matrix with ARTM.master.export_model('ptd', filename) and\
-            ARTM.master.import_model('ptd', file_name). In this case you are also able to work\
-            with theta matrix when using 'dump_artm_model' method and 'load_artm_model' function.
+        dictionary: artm.dictionary object, default = None
+            Dictionary object to use for the model initialization.
+            If None then model will not initialized and should be initialized afterwards.
+
+        cache_theta: bool, default = False
+            If True then Theta matrix is cached in the model. It is necessary if
+            ARTM.get_theta() usage is expected.
+            For traditional offline EM-algorithm set cache_theta to True.
+            
+        theta_columns_naming: 'title' or 'id', default = 'id'
+            Determines how to name documents in the model and in Theta matrix.
+            If 'title' and input collection is in vowpal wabbit format,
+            documents are named as their label in vowpal wabbit format.
+            If 'id' than documents will be named by their appearances in batches
+            starting from 1.
+            
+        seed: unsigned int or -1, default = -1
+            Random seed parameter.
+
+        show_progress_bars: bool, default = False
+            A boolean flag indicating whether to show progress bar in fit_offline, 
+            fit_online and transform operations.
+            
+        ptd_name: string, default = None
+            Setting ptd_name to a non-empty string activates an experimental mode 
+            where cached theta matrix is internally stored like a phi matrix with tokens
+            corresponding to an item title and token class ids corresponding to batch id. 
+            
+            Later you can retrieve this matix with ARTM.get_phi(model_name='ptd'), 
+            change its values with ARTM.master.attach_model(model='ptd'), 
+            export/import this matrix with ARTM.master.export_model('ptd', filename) and 
+            ARTM.master.import_model('ptd', file_name).        
         """
         self._num_processors = None
         self._cache_theta = False

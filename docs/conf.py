@@ -30,8 +30,22 @@ sys.path.insert(0, os.path.abspath('../python'))
 # ones.
 extensions = [
     'sphinx.ext.pngmath',
-    'sphinx.ext.autodoc'
+    'sphinx.ext.autodoc',
+    'sphinx.ext.autosummary',
+    'numpydoc',
 ]
+
+#numpydoc_class_members_toctree = False
+
+# This is all by Artem
+# Add documentation style 
+#napoleon_google_docstring = False
+#napoleon_numpy_docstring = True
+# Remove() arount the function
+#add_function_parentheses = False
+numpydoc_show_class_members = False
+numpydoc_use_blockqutoes = False
+
 
 autodoc_mock_imports = ['numpy', 'pandas', 'tqdm']
 
